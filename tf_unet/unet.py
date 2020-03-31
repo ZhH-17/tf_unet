@@ -429,6 +429,7 @@ class Trainer(object):
             for epoch in range(epochs):
                 total_loss = 0
                 for step in range((epoch * training_iters), ((epoch + 1) * training_iters)):
+                    print("step: ", step)
                     batch_x, batch_y = data_provider(self.batch_size)
 
                     # Run optimization op (backprop)

@@ -19,6 +19,7 @@ from __future__ import print_function, division, absolute_import, unicode_litera
 import glob
 import numpy as np
 from PIL import Image
+import cv2 as cv
 
 
 class BaseDataProvider(object):
@@ -186,7 +187,10 @@ class ImageDataProvider(BaseDataProvider):
         return [name for name in all_files if self.data_suffix in name and not self.mask_suffix in name]
 
     def _load_file(self, path, dtype=np.float32):
-        return np.array(Image.open(path), dtype)
+        # return np.array(Image.open(path), dtype)
+        import tifffile
+        return tifffile.imread(path).astype(dtype)
+
 
     def _cylce_file(self):
         self.file_idx += 1
@@ -202,5 +206,101 @@ class ImageDataProvider(BaseDataProvider):
 
         img = self._load_file(image_name, np.float32)
         label = self._load_file(label_name, np.bool)
+
+        return img,label
+
+class ImageDataSingle(BaseDataProvider):
+    """
+    Generic data provider for images, supports gray scale and colored images.
+    Assumes that the data images and label images are stored in the same folder
+    and that the labels have a different file suffix
+    e.g. 'train/fish_1.tif' and 'train/fish_1_mask.tif'
+    Number of pixels in x and y of the images and masks should be even.
+
+    Usage:
+    data_provider = ImageDataProvider("..fishes/train/*.tif")
+
+    :param img_path: images path
+    :param gt_path: ground truth image path
+    :param a_min: (optional) min value used for clipping
+    :param a_max: (optional) max value used for clipping
+    :param shuffle_data: if the order of the loaded file path should be randomized. Default 'True'
+
+    """
+
+    def __init__(self, img_path, gt_path, a_min=None, a_max=None, shuffle_data=True):
+        super(ImageDataSingle, self).__init__(a_min, a_max)
+        self.img = cv.imread(img_path, -1)
+        img_gt = cv.imread(gt_path, -1)
+        label_num = img_gt.max()
+        masks = []
+        for i in range(7):
+            mask = img_gt == i
+            tmp = np.zeros((img_gt.shape[0], img_gt.shape[1]), np.uint8)
+            tmp[mask] = 1
+            masks.append(tmp)
+        self.mask = np.stack(masks, axis=2)
+        self.h, self.w = self.img.shape[:2]
+
+        self.imageNum = 20
+        self.images = []
+        self.masks = []
+#        self._randomImages()
+        self._generateImages()
+
+        self.channels = 1 if len(self.img.shape) == 2 else self.img.shape[-1]
+        self.n_class = 2 if len(self.mask.shape) == 2 else self.mask.shape[-1]
+        print("Number of channels: %s"%self.channels)
+        print("Number of classes: %s"%self.n_class)
+
+        self.file_idx = -1
+        self.shuffle_data = shuffle_data
+
+    def _generateImages(self):
+        nx = ny = 572
+        self.images = []
+        self.masks = []
+        for iw in range(0, self.w, nx-20):
+            for ih in range(0, self.h, ny-20):
+                self.images.append(self.img[ih:ih+ny, iw:iw+nx])
+                self.masks.append(self.mask[ih:ih+ny, iw:iw+nx])
+        self.imageNum = len(self.masks)
+        print("image num: ", self.imageNum)
+        for i in range(self.imageNum):
+            img, mask = self.images[i], self.masks[i]
+            if img.shape[0]!=ny or img.shape[1]!=nx:
+                pad_x = nx - img.shape[1]
+                pad_y = ny - img.shape[0]
+                self.images[i] = np.pad(img, ((0, pad_y), (0, pad_x), (0, 0)), 'constant')
+                self.masks[i] = np.pad(mask, ((0, pad_y), (0, pad_x), (0, 0)), 'constant')
+        self.images = np.array(self.images)
+        self.masks = np.array(self.masks)
+
+    def _randomImages(self):
+        # random generate images from single image
+        nx = ny = 572
+        iws = np.random.randint(0, self.w-572, self.imageNum)
+        ihs = np.random.randint(0, self.h-572, self.imageNum)
+        self.images = []
+        self.masks = []
+        for ih, iw in zip(ihs, iws):
+            self.images.append(self.img[ih:ih+ny, iw:iw+nx])
+            self.masks.append(self.mask[ih:ih+ny, iw:iw+nx])
+
+    def _cylce_file(self):
+        self.file_idx += 1
+        if self.file_idx >= self.imageNum:
+            self.file_idx = 0
+            # self._randomImages()
+            if self.shuffle_data:
+                indexs = np.arange(self.imageNum)
+                np.random.shuffle(indexs)
+                self.images = self.images[indexs]
+                self.masks = self.masks[indexs]
+
+    def _next_data(self):
+        self._cylce_file()
+        img = self.images[self.file_idx]
+        label = self.masks[self.file_idx]
 
         return img,label

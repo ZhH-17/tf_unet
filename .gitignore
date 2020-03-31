@@ -54,3 +54,9 @@ docs/_build
 /.hope/
 /.ipynb_checkpoints/
 /.settings/
+
+*.png
+*.swp
+test_*/
+log_*/
+demo/train
