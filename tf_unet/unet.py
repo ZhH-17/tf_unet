@@ -116,12 +116,15 @@ def create_conv_net(x, keep_prob, channels, n_class, layers=3, features_root=16,
             stddev = np.sqrt(2 / (filter_size ** 2 * features))
 
 
+            # de conv, upsample
             wd = weight_variable_devonc([pool_size, pool_size, features // 2, features], stddev, name="wd")
             bd = bias_variable([features // 2], name="bd")
             h_deconv = tf.nn.relu(deconv2d(in_node, wd, pool_size) + bd)
             h_deconv_concat = crop_and_concat(dw_h_convs[layer], h_deconv)
+            # concat
             deconv[layer] = h_deconv_concat
 
+            # conv twice
             w1 = weight_variable([filter_size, filter_size, features, features // 2], stddev, name="w1")
             w2 = weight_variable([filter_size, filter_size, features // 2, features // 2], stddev, name="w2")
             b1 = bias_variable([features // 2], name="b1")
@@ -196,6 +199,8 @@ class Unet(object):
 
         self.x = tf.placeholder("float", shape=[None, None, None, channels], name="x")
         self.y = tf.placeholder("float", shape=[None, None, None, n_class], name="y")
+        # self.x = tf.placeholder("float64", shape=[None, None, None, channels], name="x")
+        # self.y = tf.placeholder("float64", shape=[None, None, None, n_class], name="y")
         self.keep_prob = tf.placeholder(tf.float32, name="dropout_probability")  # dropout (keep probability)
 
         logits, self.variables, self.offset = create_conv_net(self.x, self.keep_prob, channels, n_class, **kwargs)

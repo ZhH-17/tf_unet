@@ -37,6 +37,7 @@ def bias_variable(shape, name="bias"):
     return tf.Variable(initial, name=name)
 
 def conv2d(x, W, b, keep_prob_):
+    # convolution, add bias, droupout
     with tf.name_scope("conv2d"):
         conv_2d = tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='VALID')
         conv_2d_b = tf.nn.bias_add(conv_2d, b)

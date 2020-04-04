@@ -267,8 +267,10 @@ class ImageDataSingle(BaseDataProvider):
         self.masks = []
         for iw in range(0, self.w, nx-20):
             for ih in range(0, self.h, ny-20):
-                self.images.append(self.img[ih:ih+ny, iw:iw+nx])
-                self.masks.append(self.mask[ih:ih+ny, iw:iw+nx])
+                self.images.append(self.img[ih:ih+ny, iw:iw+nx].astype(np.float32))
+                self.masks.append(self.mask[ih:ih+ny, iw:iw+nx].astype(np.float32))
+                # self.images.append(self.img[ih:ih+ny, iw:iw+nx])
+                # self.masks.append(self.mask[ih:ih+ny, iw:iw+nx])
         self.imageNum = len(self.masks)
         print("image num: ", self.imageNum)
         for i in range(self.imageNum):
