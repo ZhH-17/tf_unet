@@ -20,6 +20,7 @@ import glob
 import numpy as np
 from PIL import Image
 import cv2 as cv
+import pdb
 
 
 class BaseDataProvider(object):
@@ -46,8 +47,10 @@ class BaseDataProvider(object):
     def _load_data_and_label(self):
         data, label = self._next_data()
 
-        train_data = self._process_data(data)
+        # train_data = self._process_data(data)
         labels = self._process_labels(label)
+        train_data = data
+        # labels = label
 
         train_data, labels = self._post_process(train_data, labels)
 
@@ -58,6 +61,8 @@ class BaseDataProvider(object):
 
     def _process_labels(self, label):
         if self.n_class == 2:
+            if len(label.shape) == 3:
+                return label
             nx = label.shape[1]
             ny = label.shape[0]
             labels = np.zeros((ny, nx, self.n_class), dtype=np.float32)
@@ -232,9 +237,9 @@ class ImageDataSingle(BaseDataProvider):
         super(ImageDataSingle, self).__init__(a_min, a_max)
         self.img = cv.imread(img_path, -1)
         img_gt = cv.imread(gt_path, -1)
-        label_num = img_gt.max()
+        label_num = img_gt.max() + 1
         masks = []
-        for i in range(7):
+        for i in range(label_num):
             mask = img_gt == i
             tmp = np.zeros((img_gt.shape[0], img_gt.shape[1]), np.uint8)
             tmp[mask] = 1
@@ -275,12 +280,16 @@ class ImageDataSingle(BaseDataProvider):
                 self.masks[i] = np.pad(mask, ((0, pad_y), (0, pad_x), (0, 0)), 'constant')
         self.images = np.array(self.images)
         self.masks = np.array(self.masks)
+        indexs = np.arange(self.imageNum)
+        np.random.shuffle(indexs)
+        self.images = self.images[indexs]
+        self.masks = self.masks[indexs]
 
     def _randomImages(self):
         # random generate images from single image
         nx = ny = 572
-        iws = np.random.randint(0, self.w-572, self.imageNum)
-        ihs = np.random.randint(0, self.h-572, self.imageNum)
+        iws = np.random.randint(0, self.w-nx, self.imageNum)
+        ihs = np.random.randint(0, self.h-ny, self.imageNum)
         self.images = []
         self.masks = []
         for ih, iw in zip(ihs, iws):

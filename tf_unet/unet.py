@@ -26,11 +26,13 @@ from collections import OrderedDict
 import logging
 
 import tensorflow as tf
+import pdb
 
 from tf_unet import util
 from tf_unet.layers import (weight_variable, weight_variable_devonc, bias_variable,
                             conv2d, deconv2d, max_pool, crop_and_concat, pixel_wise_softmax,
                             cross_entropy)
+from tf_unet.layers import weight_variable_he
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
 
@@ -112,6 +114,7 @@ def create_conv_net(x, keep_prob, channels, n_class, layers=3, features_root=16,
         with tf.name_scope("up_conv_{}".format(str(layer))):
             features = 2 ** (layer + 1) * features_root
             stddev = np.sqrt(2 / (filter_size ** 2 * features))
+
 
             wd = weight_variable_devonc([pool_size, pool_size, features // 2, features], stddev, name="wd")
             bd = bias_variable([features // 2], name="bd")
@@ -223,6 +226,7 @@ class Unet(object):
             flat_labels = tf.reshape(self.y, [-1, self.n_class])
             if cost_name == "cross_entropy":
                 class_weights = cost_kwargs.pop("class_weights", None)
+                print("class weight: ", class_weights)
 
                 if class_weights is not None:
                     class_weights = tf.constant(np.array(class_weights, dtype=np.float32))
@@ -429,7 +433,6 @@ class Trainer(object):
             for epoch in range(epochs):
                 total_loss = 0
                 for step in range((epoch * training_iters), ((epoch + 1) * training_iters)):
-                    print("step: ", step)
                     batch_x, batch_y = data_provider(self.batch_size)
 
                     # Run optimization op (backprop)
@@ -449,6 +452,7 @@ class Trainer(object):
                                                     util.crop_to_shape(batch_y, pred_shape))
 
                     total_loss += loss
+                    self.store_prediction(sess, batch_x, batch_y, "epoch_%s_step_%s" %(epoch, step))
 
                 self.output_epoch_stats(epoch, total_loss, training_iters, lr)
                 self.store_prediction(sess, test_x, test_y, "epoch_%s" % epoch)

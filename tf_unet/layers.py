@@ -20,10 +20,14 @@ author: jakeret
 from __future__ import print_function, division, absolute_import, unicode_literals
 
 import tensorflow as tf
+import numpy as np
 
 def weight_variable(shape, stddev=0.1, name="weight"):
     initial = tf.truncated_normal(shape, stddev=stddev)
     return tf.Variable(initial, name=name)
+
+def weight_variable_he(shape, coef, name="weight"):
+    return tf.Variable(np.random.randn(*shape).astype(np.float32)* coef, name=name)
 
 def weight_variable_devonc(shape, stddev=0.1, name="weight_devonc"):
     return tf.Variable(tf.truncated_normal(shape, stddev=stddev), name=name)

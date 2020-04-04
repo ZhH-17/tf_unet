@@ -68,6 +68,8 @@ def to_rgb(img):
     :returns img: the rgb image [nx, ny, 3]
     """
     img = np.atleast_3d(img)
+    if img.shape[2] ==3 and img.max() >10:
+        return img
     channels = img.shape[2]
     if channels < 3:
         img = np.tile(img, 3)
@@ -79,6 +81,17 @@ def to_rgb(img):
 
     img *= 255
     return img
+
+label_cmap = [[100,100,100], [128,0,0], [0,128,0], [128,128,0], [0,0,128], [128,0,128], [0,128,128]]
+def to_rgb_label(img_mask):
+    '''
+    :param img_mask: the mask array to convert [nx, ny, nclass]
+    :returns img: the rgb image [nx, ny, 3]
+    '''
+    label_img = np.argmax(img_mask, axis=-1)
+    rgb_img = np.array(label_cmap)[label_img.reshape(-1)]
+    rgb_img = rgb_img.reshape(*(label_img.shape), 3)
+    return rgb_img
 
 def crop_to_shape(data, shape):
     """
