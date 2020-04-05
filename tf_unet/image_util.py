@@ -248,8 +248,6 @@ class ImageDataSingle(BaseDataProvider):
         self.h, self.w = self.img.shape[:2]
 
         self.imageNum = 20
-        self.images = []
-        self.masks = []
 #        self._randomImages()
         self._generateImages()
 
@@ -265,27 +263,41 @@ class ImageDataSingle(BaseDataProvider):
         nx = ny = 572
         self.images = []
         self.masks = []
-        for iw in range(0, self.w, nx-20):
-            for ih in range(0, self.h, ny-20):
-                self.images.append(self.img[ih:ih+ny, iw:iw+nx].astype(np.float32))
-                self.masks.append(self.mask[ih:ih+ny, iw:iw+nx].astype(np.float32))
-                # self.images.append(self.img[ih:ih+ny, iw:iw+nx])
-                # self.masks.append(self.mask[ih:ih+ny, iw:iw+nx])
-        self.imageNum = len(self.masks)
+        self.images_origin = []
+        self.masks_origin = []
+        offset = 40
+        half_offset = offset//2
+        self.num_row = int(np.ceil(float(self.h-half_offset)/(ny-half_offset)))
+        self.num_col = int(np.ceil(float(self.w-half_offset)/(nx-half_offset)))
+        for ih in range(0, self.h-half_offset, ny-half_offset):
+            for iw in range(0, self.w-half_offset, nx-half_offset):
+                img_tmp = self.img[ih:ih+ny, iw:iw+nx].astype(np.float32)
+                mask_tmp = self.mask[ih:ih+ny, iw:iw+nx].astype(np.float32)
+                if img_tmp.shape[0]!=ny or img_tmp.shape[1]!=nx:
+                    pad_x = nx - img_tmp.shape[1]
+                    pad_y = ny - img_tmp.shape[0]
+                    img_tmp = np.pad(img_tmp, ((0, pad_y), (0, pad_x), (0, 0)), 'constant')
+                    mask_tmp = np.pad(mask_tmp, ((0, pad_y), (0, pad_x), (0, 0)), 'constant')
+                self.images_origin.append(img_tmp)
+                self.masks_origin.append(mask_tmp)
+        self.imageNum = len(self.masks_origin)
         print("image num: ", self.imageNum)
-        for i in range(self.imageNum):
-            img, mask = self.images[i], self.masks[i]
-            if img.shape[0]!=ny or img.shape[1]!=nx:
-                pad_x = nx - img.shape[1]
-                pad_y = ny - img.shape[0]
-                self.images[i] = np.pad(img, ((0, pad_y), (0, pad_x), (0, 0)), 'constant')
-                self.masks[i] = np.pad(mask, ((0, pad_y), (0, pad_x), (0, 0)), 'constant')
-        self.images = np.array(self.images)
-        self.masks = np.array(self.masks)
-        indexs = np.arange(self.imageNum)
-        np.random.shuffle(indexs)
-        self.images = self.images[indexs]
-        self.masks = self.masks[indexs]
+        self.indexs = np.arange(self.imageNum)
+
+        # for i in range(self.imageNum):
+        #     img, mask = self.images[i], self.masks[i]
+        #     if img.shape[0]!=ny or img.shape[1]!=nx:
+        #         pad_x = nx - img.shape[1]
+        #         pad_y = ny - img.shape[0]
+        #         self.images[i] = np.pad(img, ((0, pad_y), (0, pad_x), (0, 0)), 'constant')
+        #         self.masks[i] = np.pad(mask, ((0, pad_y), (0, pad_x), (0, 0)), 'constant')
+        self.images_origin = np.array(self.images_origin)
+        self.masks_origin = np.array(self.masks_origin)
+        self.indexs = np.arange(self.imageNum)
+
+        np.random.shuffle(self.indexs)
+        self.images = self.images_origin[self.indexs]
+        self.masks = self.masks_origin[self.indexs]
 
     def _randomImages(self):
         # random generate images from single image
@@ -304,10 +316,13 @@ class ImageDataSingle(BaseDataProvider):
             self.file_idx = 0
             # self._randomImages()
             if self.shuffle_data:
-                indexs = np.arange(self.imageNum)
-                np.random.shuffle(indexs)
-                self.images = self.images[indexs]
-                self.masks = self.masks[indexs]
+                np.random.shuffle(self.indexs)
+                self.images = self.images_origin[self.indexs]
+                self.masks = self.masks_origin[self.indexs]
+                # indexs = np.arange(self.imageNum)
+                # np.random.shuffle(indexs)
+                # self.images = self.images[indexs]
+                # self.masks = self.masks[indexs]
 
     def _next_data(self):
         self._cylce_file()

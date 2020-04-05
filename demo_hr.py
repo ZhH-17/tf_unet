@@ -19,9 +19,9 @@ from tf_unet.image_util import ImageDataProvider, ImageDataSingle
 label_cmap = {0:[0,0,0], 1:[128,0,0], 2:[0,128,0], 3:[128,128,0], 4:[0,0,128], 5:[128,0,128], 6:[0,128,128]}
 
 # output_path = "log_cj_adam"
-output_path = "log_test_tree_l3_float"
-# data_provider = ImageDataSingle("./data/cj_cut.png", "./data/cj_cut_gt.png")
-data_provider = ImageDataSingle("./data/cj_test1.png", "./data/cj_test1_gt.png")
+output_path = "log_l3"
+data_provider = ImageDataSingle("./data/cj_cut.png", "./data/cj_cut_gt.png")
+# data_provider = ImageDataSingle("./data/cj_test1.png", "./data/cj_test1_gt.png")
 
 class_weights = np.ones(data_provider.n_class)*5
 class_weights[0] = 0.5
@@ -36,24 +36,66 @@ path = trainer.train(data_provider, output_path, training_iters=40, epochs=500)
 # path = trainer.train(data_provider, output_path, training_iters=30, epochs=100)
 
 
+def stack_imgs(imgs, num_row, num_col):
+    '''
+    concatenate image slices to a panoroma,
+    imgs: image slices should be sorted by row first
+    '''
+    imgs_row = []
+    for i in range(num_row):
+        imgs_row.append(np.concatenate(imgs[i*num_col:(i+1)*num_col], axis=1))
+    img_stack = np.concatenate(imgs_row, axis=0)
+    return img_stack
 
-img = cv.imread("./data/cj_right_all.png", -1)
-data = []
-nx = 572
-for i in range(0, img.shape[1]-nx, nx):
-    img_tmp = img[:nx, i:i+nx]
-    data.append(img_tmp)
-data = np.array(data)
+path = os.path.join(output_path, "model.ckpt")
+images = data_provider.images_origin
+masks = data_provider.masks_origin
+prediction = net.predict(path, images)
 
-prediction = net.predict(path, data)
-data_crop = util.crop_to_shape(data, prediction.shape)
-for i, img in enumerate(data_crop):
-    pred_img = np.zeros_like(img)
-    for l in range(1,data_provider.n_class):
-        mask = prediction[i, :, :, l] > 0.1
-        color = label_cmap[l]
-        pred_img[mask] = color
-    img_tmp = cv.addWeighted(img, 0.8, pred_img, 0.2, 0)
-    cv.imwrite("pred_%d.png" %i, img_tmp)
-    cv.imwrite("pred_%d.png" %i, pred_img)
+gts = np.argmax(masks, axis=-1)
+images_crop = util.crop_to_shape(images, prediction.shape)
+gts_crop = util.crop_to_shape(gts, prediction.shape)
 
+
+label_cmap_list = np.array(list(label_cmap.values()))
+preds_rgb = []
+preds_gt = []
+for i, pred in enumerate(prediction):
+    h, w = pred.shape[0:2]
+    label = pred.argmax(axis=-1)
+    preds_gt.append(label)
+    label = label.reshape([-1])
+    label_rgb = np.array(label_cmap_list[label])
+    label_rgb = label_rgb.reshape((h, w, 3))
+    preds_rgb.append(label_rgb)
+
+img = stack_imgs(images_crop, data_provider.num_row, data_provider.num_col)
+img_gt = stack_imgs(gts_crop, data_provider.num_row, data_provider.num_col)
+pred_rgb = stack_imgs(preds_rgb, data_provider.num_row, data_provider.num_col)
+pred_gt = stack_imgs(preds_gt, data_provider.num_row, data_provider.num_col)
+cv.imwrite("pred_rgb.png", pred_rgb)
+cv.imwrite("img.png", img)
+img_add = cv.addWeighted(img, 0.8, pred_rgb, 0.2, 0)
+cv.imwrite("img_add.png", img_add)
+uniq = img_gt == pred_gt
+print("accuracy: %.4f" %(uniq.sum()/np.product(img_gt.shape)))
+
+# img = cv.imread("./data/cj_right_all.png", -1)
+# data = []
+# nx = 572
+# for i in range(0, img.shape[1]-nx, nx):
+#     img_tmp = img[:nx, i:i+nx]
+#     data.append(img_tmp)
+# data = np.array(data)
+
+# prediction = net.predict(path, data)
+# data_crop = util.crop_to_shape(data, prediction.shape)
+# for i, img in enumerate(data_crop):
+#     pred_img = np.zeros_like(img)
+#     for l in range(1,data_provider.n_class):
+#         mask = prediction[i, :, :, l] > 0.1
+#         color = label_cmap[l]
+#         pred_img[mask] = color
+#     img_tmp = cv.addWeighted(img, 0.8, pred_img, 0.2, 0)
+#     cv.imwrite("pred_%d.png" %i, img_tmp)
+#     cv.imwrite("pred_%d.png" %i, pred_img)
