@@ -19,20 +19,20 @@ from tf_unet.image_util import ImageDataProvider, ImageDataSingle
 label_cmap = {0:[0,0,0], 1:[128,0,0], 2:[0,128,0], 3:[128,128,0], 4:[0,0,128], 5:[128,0,128], 6:[0,128,128]}
 
 # output_path = "log_cj_adam"
-output_path = "log_test_tree_l5_float"
+output_path = "log_test_tree_l3_float"
 # data_provider = ImageDataSingle("./data/cj_cut.png", "./data/cj_cut_gt.png")
 data_provider = ImageDataSingle("./data/cj_test1.png", "./data/cj_test1_gt.png")
 
 class_weights = np.ones(data_provider.n_class)*5
 class_weights[0] = 0.5
-net = unet.Unet(data_provider.channels, data_provider.n_class, layers=5,
+net = unet.Unet(data_provider.channels, data_provider.n_class, layers=3,
                 features_root=32, cost_kwargs={"class_weights": class_weights})
 # net = unet.Unet(data_provider.channels, data_provider.n_class, cost="dice_coefficient", layers=3,
 #                 features_root=32, cost_kwargs={"class_weights": class_weights})
 
 # trainer = unet.Trainer(net, optimizer="momentum", batch_size=10, verification_batch_size=3, opt_kwargs=dict(learning_rate=0.02))
-trainer = unet.Trainer(net, optimizer="adam", batch_size=10, verification_batch_size=3, opt_kwargs=dict(learning_rate=0.002))
-path = trainer.train(data_provider, output_path, training_iters=20, epochs=200)
+trainer = unet.Trainer(net, optimizer="adam", batch_size=3, verification_batch_size=3, opt_kwargs=dict(learning_rate=0.001))
+path = trainer.train(data_provider, output_path, training_iters=40, epochs=500)
 # path = trainer.train(data_provider, output_path, training_iters=30, epochs=100)
 
 
