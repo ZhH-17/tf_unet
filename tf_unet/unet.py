@@ -409,6 +409,7 @@ class Trainer(object):
         :param write_graph: Flag if the computation graph should be written as protobuf file to the output path
         :param prediction_path: path where to save predictions on each epoch
         """
+        model_path = os.path.join(output_path, "model.ckpt")
         save_path = os.path.join(output_path, "model.ckpt")
         if epochs == 0:
             return save_path
@@ -426,8 +427,12 @@ class Trainer(object):
                 if ckpt and ckpt.model_checkpoint_path:
                     self.net.restore(sess, ckpt.model_checkpoint_path)
 
+            err_rate_least = 1.
+            saver = tf.train.Saver()
+            save_path = saver.save(sess, model_path, global_step=0)
+
             test_x, test_y = data_provider(self.verification_batch_size)
-            pred_shape = self.store_prediction(sess, test_x, test_y, "_init")
+            pred_shape, err_rate = self.store_prediction(sess, test_x, test_y, "_init")
 
             summary_writer = tf.summary.FileWriter(output_path, graph=sess.graph)
             logging.info("Start optimization")
@@ -451,16 +456,22 @@ class Trainer(object):
                         self.norm_gradients_node.assign(norm_gradients).eval()
 
                     if step % display_step == 0:
-                        self.output_minibatch_stats(sess, summary_writer, step, batch_x,
+                        acc = self.output_minibatch_stats(sess, summary_writer, step, batch_x,
                                                     util.crop_to_shape(batch_y, pred_shape))
 
                     total_loss += loss
-                    self.store_prediction(sess, batch_x, batch_y, "epoch_%s_step_%s" %(epoch, step))
+                    # _, err_rate = self.store_prediction(sess, batch_x, batch_y, "epoch_%s_step_%s" %(epoch, step))
+
 
                 self.output_epoch_stats(epoch, total_loss, training_iters, lr)
-                self.store_prediction(sess, test_x, test_y, "epoch_%s" % epoch)
+                _, err_rate = self.store_prediction(sess, test_x, test_y, "epoch_%s" % epoch)
+                if err_rate < err_rate_least:
+                    print("least err rate: %.4f, err rate: %.4f" %(err_rate_least, err_rate))
+                    err_rate_least = err_rate
+                    save_path = saver.save(sess, model_path, global_step=step)
 
-                save_path = self.net.save(sess, save_path)
+                # save_path = self.net.save(sess, save_path, step)
+                save_path = saver.save(sess, model_path, global_step=step)
             logging.info("Optimization Finished!")
 
             return save_path
@@ -475,15 +486,13 @@ class Trainer(object):
                                                   self.net.y: util.crop_to_shape(batch_y, pred_shape),
                                                   self.net.keep_prob: 1.})
 
-        logging.info("Verification error= {:.1f}%, loss= {:.4f}".format(error_rate(prediction,
-                                                                                   util.crop_to_shape(batch_y,
-                                                                                                      prediction.shape)),
-                                                                        loss))
+        err_rate = error_rate(prediction, util.crop_to_shape(batch_y, prediction.shape))
+        logging.info("Verification error= {:.1f}%, loss= {:.4f}".format(err_rate, loss))
 
         img = util.combine_img_prediction(batch_x, batch_y, prediction)
         util.save_image(img, "%s/%s.jpg" % (self.prediction_path, name))
 
-        return pred_shape
+        return pred_shape, err_rate
 
     def output_epoch_stats(self, epoch, total_loss, training_iters, lr):
         logging.info(
@@ -507,6 +516,7 @@ class Trainer(object):
                                                                                                            error_rate(
                                                                                                                predictions,
                                                                                                                batch_y)))
+        return acc
 
 
 def _update_avg_gradients(avg_gradients, gradients, step):
